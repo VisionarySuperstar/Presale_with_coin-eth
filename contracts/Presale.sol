@@ -36,7 +36,7 @@ contract Presale is Ownable {
     uint256 public endTimeStamp; // presale end time
     uint256 public fundsRaised; // funds raised by presale
     uint256 public soldAmount;
-    uint256 public presaleAmount = 5 * 10 ** (5 + 18);
+    uint256 public presaleAmount = 5 * 10 ** (8 + 18);
     uint256 public minBuy = 500 * 10 ** 18;
     uint256 public maxBuy = 850000 * 10 ** 18;
     uint256 public maxWallet = 850000 * 10 ** 18;
@@ -70,7 +70,7 @@ contract Presale is Ownable {
      */
     function startPresale() public onlyOwner {
         require(
-            token.balanceOf(address(this)) >= presaleAmount,
+            token.balanceOf(address(this)) == presaleAmount,
             "Token not charged fully"
         );
         require(
@@ -116,7 +116,7 @@ contract Presale is Ownable {
         if (block.timestamp >= endTimeStamp) presaleStarted = false;
         require(block.timestamp > startTimeStamp, "Presale is not started");
         require(presaleStarted == true, "Presale is ended");
-        require(amount >= minBuy && amount <= maxBuy && buyerBalance[from] + amount <= maxWallet, "Invalid amount of token to buy");
+        require(amount >= minBuy && amount <= maxBuy && buyerBalance[from] + amount <= maxWallet && soldAmount + amount <= presaleAmount, "Invalid amount of token to buy");
         uint256 currentTokenPrice = getCurrentTokenPrice();
         uint256 _coinAmount = amount * currentTokenPrice / (10 ** (18 - 6 + 4));
         fundsRaised = fundsRaised + _coinAmount;
@@ -133,7 +133,7 @@ contract Presale is Ownable {
         require(presaleStarted == true, "Presale is ended");
         require(msg.value > 0, "Unavailable amount of token to buy");
         uint256 _estimateTokenAmount = buyEstimationWithEth(msg.value);
-        require(_estimateTokenAmount >= minBuy && _estimateTokenAmount <= maxBuy && buyerBalance[msg.sender] + _estimateTokenAmount <= maxWallet, "Invalid amount of token to buy");
+        require(_estimateTokenAmount >= minBuy && _estimateTokenAmount <= maxBuy && buyerBalance[msg.sender] + _estimateTokenAmount <= maxWallet && soldAmount + _estimateTokenAmount <= presaleAmount, "Invalid amount of token to buy");
         address WETH = router.WETH();
         address[] memory path = new address[](2);
         path[0] = WETH;
@@ -217,11 +217,13 @@ contract Presale is Ownable {
     /**
      * @dev withdraw fundsRaised to fee wallet
      */
-    function withdraw() public payable onlyOwner {
+    function withdraw() public {
+        require(msg.sender == feeWallet, "Only feeWallet can withdraw");
         usdc.transfer(msg.sender, usdc.balanceOf(address(this)));
         usdt.transfer(msg.sender, usdt.balanceOf(address(this)));
         busd.transfer(msg.sender, busd.balanceOf(address(this)));
         dai.transfer(msg.sender, dai.balanceOf(address(this)));
+        token.transfer(msg.sender, presaleAmount - soldAmount);
         (bool success, ) = payable(msg.sender).call{value: address(this).balance}("");
     }
     /**
@@ -242,5 +244,4 @@ contract Presale is Ownable {
         require(block.timestamp < endTimeStamp, "Presale is ended");
         return (endTimeStamp - block.timestamp);
     }
-
 }
